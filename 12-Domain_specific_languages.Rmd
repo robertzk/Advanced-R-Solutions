@@ -9,6 +9,42 @@
     
     __<span style="color:green">A</span>__: 
 
+    We modify the `tag` function to escape these special strings if and only if
+    we are using the `<script>` or `<style>` tag. 
+
+    ```{r, eval = FALSE}
+    escape <- function(x, tag = NULL) UseMethod("escape")
+    escape.html <- function(x, tag = NULL) x
+    escape.character <- function(x, tag = NULL) {
+      if (identical(tag, "script")) {
+        x <- gsub("</script>", "&lt;/script&gt;", x)
+      } else if (identical(tag, "style")) {
+        x <- gsub("</style>", "&lt;/style&gt;", x)
+      } else {
+        x <- gsub("&", "&amp;", x)
+        x <- gsub("<", "&lt;", x)
+        x <- gsub(">", "&gt;", x)
+      }
+
+      html(x)
+    }
+
+    tag <- function(tag) {
+      force(tag)
+      function(...) {
+        args <- list(...)
+        attribs <- html_attributes(named(args))
+        children <- unlist(escape(unnamed(args), tag = tag))
+
+        html(paste0(
+          "<", tag, attribs, ">",
+          paste(children, collapse = ""),
+          "</", tag, ">"
+        ))
+      }
+    }
+    ```
+
 1.  __<span style="color:red">Q</span>__: The use of `...` for all functions has some big downsides. There's no
     input validation and there will be little information in the
     documentation or autocomplete about how they are used in the function. 
@@ -25,6 +61,28 @@
     All tags should get `class` and `id` attributes.
     
     __<span style="color:green">A</span>__: 
+
+    ```{r, eval = FALSE}
+    generate_tags <- function(tags) {
+      lapply(names(tags), function(tag) {
+        force(tag)
+        attribs <- union(tags[[tag]], c("class", "id"))
+        fn <- function(...) {
+          args <- do.call(list, as.list(match.call())[-1])
+          attribs <- html_attributes(named(args))
+          children <- unlist(escape(unnamed(args), tag = tag))
+
+          html(paste0(
+            "<", tag, attribs, ">",
+            paste(children, collapse = ""),
+            "</", tag, ">"
+          ))
+        }
+        formals(fn) <- as.pairlist(stats::setNames(fn, attribs))
+        fn
+      })
+    }
+    ```
 
 1. __<span style="color:red">Q</span>__: Currently the HTML doesn't look terribly pretty, and it's hard to see the
    structure. How could you adapt `tag()` to do indenting and formatting?
